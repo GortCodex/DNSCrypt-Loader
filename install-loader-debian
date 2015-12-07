@@ -1,0 +1,203 @@
+#!/bin/bash
+PATH=${PATH}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+#------------------------------------------------------------
+# Core Script folder/file
+#------------------------------------------------------------
+cLoaderCoreScript="dnscrypt-loader"
+cLoaderBaseDir="/usr/local/sbin/"
+cLoaderTarget="$cLoaderBaseDir$cLoaderCoreScript"
+
+
+#------------------------------------------------------------
+# Init script folder/file
+#------------------------------------------------------------
+cDistro="-debian"
+cLoaderInitdScript="dcp-loader"
+cInitdBaseDir="/etc/init.d/"
+cInitdTarget="$cInitdBaseDir$cLoaderInitdScript"
+
+
+#------------------------------------------------------------
+# Temporary folder/file
+#------------------------------------------------------------
+cTempDir="/tmp/dnscrypt-loader/"
+
+
+#------------------------------------------------------------
+# Work folder/files
+#------------------------------------------------------------
+#cWorkFile="$cCSVBaseDir/dcploader-resolvers.csv"
+
+
+#------------------------------------------------------------
+# Configurations folder/files
+#------------------------------------------------------------
+cConfigBaseDir="/etc/dnscrypt-loader/"
+
+cPrimaryConfigBaseName="dcp-primary.conf"
+cSecondaryConfigBaseName="dcp-secondary.conf"
+
+cPrimaryConfigFile="$cConfigBaseDir$cPrimaryConfigBaseName"
+cSecondaryConfigFile="$cConfigBaseDir$cSecondaryConfigBaseName"
+
+#------------------------------------------------------------
+
+about="DNSCrypt-loader help you to manage tasks of DNSCrypt-proxy easily.\n"
+about+="This installer configures your system to run\n" 
+about+="DNSCrypt-proxy as session only or when the system starts\n"
+
+
+#------------------------------------------------------------
+
+
+function Uninstall(){
+
+
+ sudo update-rc.d $cLoaderInitdScript remove
+
+ rm -f $cInitdTarget
+ rm -f $cLoaderTarget
+ rm -f $cPrimaryConfigFile
+ rm -f $cSecondaryConfigFile
+
+}
+
+
+function PrepareFolders(){
+
+ mkdir -p $cTempDir
+ mkdir -p $cConfigBaseDir
+ touch $cPrimaryConfigFile
+ touch $cSecondaryConfigFile
+
+}
+
+
+function InstallInitd(){
+
+
+    cp $cLoaderInitdScript$cDistro $cInitdTarget
+    if [ $? != 0 ]; then
+       echo "COPY ERROR: $cLoaderInitdScript $cInitdTarget "
+       echo "dnscrypt-loader install failed"
+       exit 1
+    fi
+
+
+    chmod +x  $cInitdTarget	
+    sudo update-rc.d $cLoaderInitdScript defaults
+    
+    if [ $? != 0 ]; then
+       echo "INIT SCRIPT ERROR: $cInitdTarget "
+       echo "dnscrypt-loader install failed"
+       exit 1
+    fi 
+
+}
+
+
+function InstallLoader(){
+
+ cp $cLoaderCoreScript $cLoaderTarget
+ if [ $? != 0 ]; then
+    echo "COPY ERROR: $cLoaderCoreScript $cLoaderTarget "
+    echo "dnscrypt-loader install failed"
+    exit 1
+ fi
+
+ chmod +x $cLoaderTarget
+ 
+}
+
+
+function FShowTasksMenu(){
+
+instmsg="Install DNSCrypt-loader ?\n"
+instmsg+="Previous installation will be removed.\n"
+instmsg+="Loading at boot time will be disabled.\n"
+instmsg+="If DNSCrypt-proxy is running it will not be interrupted."
+
+
+whiptail --title "About DNSCrypt-loader installer" --msgbox "$about"  0 0
+
+while :
+do
+
+  SelectedTask=$(whiptail --title "DNSCrypt-loader Install Manager tasks" --menu "Choose your option" 20 60 12 \
+      "1" "Install DNSCrypt-loader"    		  \
+      "2" "Enable  DNSCrypt-loader at boot time"  \
+      "3" "Disable DNSCrypt-loader at boot time"  \
+      " " ""                                      \
+      "4" "Uninstall DNSCrypt-loader"             \
+      "5" "Quit"  3>&1 1>&2 2>&3)
+  exitstatus=$?
+
+
+  case $SelectedTask in
+
+        1) whiptail --title "DNSCrypt-loader" --yesno "$instmsg" 0 0
+           if [ $? = 0 ]; then
+              Uninstall
+	      PrepareFolders
+              InstallLoader
+              whiptail --title "DNSCrypt-loader Install" --msgbox "DNSCrypt-loader Install success\nType dncrypt-loader to run "  0 0
+           fi
+           ;;
+
+        2) whiptail --title "DNSCrypt-loader" --yesno "Enable loading at boot time ?" 0 0
+           if [ $? = 0 ]; then
+              chkconfig $cLoaderInitdScript off
+     	      rm -f $cInitdTarget
+              rm -f $cLoaderTarget
+              PrepareFolders
+              InstallLoader
+              InstallInitd
+              whiptail --title "DNSCrypt-loader Install" --msgbox "DNSCrypt-loader service Install success "  0 0
+           fi
+           ;;
+
+        3) whiptail --title "DNSCrypt-loader" --yesno "Disable loading at boot time ?" 0 0
+           if [ $? = 0 ]; then
+              chkconfig $cLoaderInitdScript off
+	      rm -f $cInitdTarget
+              whiptail --title "DNSCrypt-loader uninstall" --msgbox "DNSCrypt-loader service uninstall success "  0 0
+           fi
+           ;;
+
+        4) whiptail --title "DNSCrypt-loader" --yesno "Uninstall DNSCryp-loader ?" 0 0
+           if [ $? = 0 ]; then
+	      Uninstall
+              whiptail --title "DNSCrypt-loader uninstall" --msgbox "DNSCrypt-loader uninstall success "  0 0
+           fi
+           ;;
+
+        5) clear
+           exit
+        ;;
+
+        " ") continue
+        ;;
+
+        *) clear
+           exit
+        ;;
+  esac
+
+done
+
+}
+
+
+#------------------------------------------------------------
+# Check privileges
+#------------------------------------------------------------
+if [ $(id -u) != 0 ]; then
+   echo "You need root privileges to run this script."
+   exit 1
+fi
+
+
+FShowTasksMenu
+
+
