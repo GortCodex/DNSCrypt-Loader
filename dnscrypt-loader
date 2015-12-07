@@ -1,0 +1,1626 @@
+#!/bin/bash
+PATH=${PATH}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+# ---------------------------------------------------------------------------
+# MIT License (MIT)
+#
+# Copyright (c) 2016 Alexandre Martins Araujo - GortCodex
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# Revision history:
+# 2015-10-10  1.0 release
+# ---------------------------------------------------------------------------
+
+#############################################################################
+#
+# S T A R T   C U S T O M I Z A T I O N S
+#
+############################################################################
+
+#------------------------------------------------------------
+# Chroot user who executes dnscrypt-proxy
+#
+# please change root user by unprivileged user
+# to avoid security problems
+#------------------------------------------------------------
+cChroot="root"
+
+
+#------------------------------------------------------------
+# dnscrypt-proxy daemon parameters
+#------------------------------------------------------------
+cPrimaryIP="127.0.0.1"
+cPrimaryPort="5553"
+
+cSecondaryIP="127.0.0.1"
+cSecondaryPort="5554"
+
+
+#------------------------------------------------------------
+# dnscrypt-proxy path
+#------------------------------------------------------------
+cProxyBaseDir="/usr/local/sbin/"
+cProxyBaseName="dnscrypt-proxy"
+cProxyApp="$cProxyBaseDir$cProxyBaseName"
+
+
+#------------------------------------------------------------
+# Resolvers.csv path
+#------------------------------------------------------------
+cCSVBaseDir="/usr/local/share/dnscrypt-proxy/"
+cCSVBaseName="dnscrypt-resolvers.csv"
+cCSVFile="$cCSVBaseDir$cCSVBaseName"
+
+
+#------------------------------------------------------------
+# Resolvers.csv.minisig path
+#------------------------------------------------------------
+cSIGBaseDir="/usr/local/share/dnscrypt-proxy/"
+cSIGBaseName="dnscrypt-resolvers.csv.minisig"
+cSIGFile="$cSIGBaseDir$cSIGBaseName"
+
+
+#------------------------------------------------------------
+# construct frequently used parameters
+#------------------------------------------------------------
+cDaemon="$cProxyApp --daemonize "
+cLocalAddress1="--local-address=$cPrimaryIP:$cPrimaryPort "
+cLocalAddress2="--local-address=$cSecondaryIP:$cSecondaryPort "
+cResolverAddress="--resolver-address"
+cProviderName="--provider-name"
+cProviderKey="--provider-key"
+cResolverList="--resolvers-list=$cCSVFile "
+cUser="--user=$cChroot"
+cOtherParams="--ephemeral-keys "
+
+
+#------------------------------------------------------------
+# Resolvers.csv URL
+#------------------------------------------------------------
+cCSVURL="https://download.dnscrypt.org/dnscrypt-proxy/dnscrypt-resolvers.csv"
+
+
+#------------------------------------------------------------
+# dnscrypt-resolvers.csv.minisig URL
+#
+# Please refer to https://github.com/jedisct1/minisign
+# Tarballs and pre-compiled binaries can be verified with the following public key:
+#------------------------------------------------------------
+# Resolvers.csv.minisig URL
+#------------------------------------------------------------
+cSIGURL="https://download.dnscrypt.org/dnscrypt-proxy/dnscrypt-resolvers.csv.minisig"
+
+
+#------------------------------------------------------------
+# minisig public key
+# get public key at https://github.com/jedisct1/minisign
+#------------------------------------------------------------
+cSIGKey="RWQf6LRCGA9i53mlYecO4IzT51TGPpvWucNSCh1CBM0QTaLn73Y7GFO3"
+
+
+#------------------------------------------------------------
+# cDigTarget = Domain used to test resolver
+# cDigTries  = number of tries to resolve address
+# cDigTime   = time in seconds per try
+#
+#------------------------------------------------------------
+cDigTarget="internic.net"
+cDigTries=2
+cDigTime=5
+
+
+#------------------------------------------------------------
+# Additional Filters
+#------------------------------------------------------------
+# true = display only anonymous resolvers
+# false = display all resolvers
+#------------------------------------------------------------
+cAnonymousOnly=true
+
+
+#------------------------------------------------------------
+# options:
+# "ipv4" = show only ipv4 resolvers
+# "ipv6" = show only ipv6 resolvers
+# "all"  = show ipv4 and ipv6 resolvers (default)
+#
+#------------------------------------------------------------
+cIPVersion="ipv4"
+
+
+#------------------------------------------------------------
+# true = perform resolvers.csv minisgn verification. minisgn application must be installed
+# false = ignore minisgn verification
+#------------------------------------------------------------
+cEnableSignCheck=false
+
+
+#------------------------------------------------------------
+# User interface
+# whiptail or dialog
+#------------------------------------------------------------
+cGUI="whiptail"
+
+############################################################################
+#
+# From here begins the main script code.
+# You do not need to customize anything here.
+#
+############################################################################
+
+############################################################################
+#
+# E N D   C U S T O M I Z A T I O N S
+#
+############################################################################
+
+
+#------------------------------------------------------------
+# Workspace
+#------------------------------------------------------------
+
+
+#------------------------------------------------------------
+# Loader process name
+#------------------------------------------------------------
+cLoaderProcess="dnscrypt-loader"
+
+
+#------------------------------------------------------------
+# Locations
+#------------------------------------------------------------
+
+#cLoaderDir="$( cd "$(dirname "$0")"; pwd -P )"
+
+cTempDir="/tmp/dnscrypt-loader/"
+cWorkFile="$cCSVBaseDir/dcploader-resolvers.csv"
+
+
+cConfigBaseDir="/etc/dnscrypt-loader/"
+cPrimaryConfigBaseName="dcp-primary.conf"
+cSecondaryConfigBaseName="dcp-secondary.conf"
+
+cPrimaryConfigFile="$cConfigBaseDir$cPrimaryConfigBaseName"
+cSecondaryConfigFile="$cConfigBaseDir$cSecondaryConfigBaseName"
+
+cCSVTemp="$cTempDir$cCSVBaseName"
+cSIGTemp="$cTempDir$cSIGBaseName"
+
+
+#------------------------------------------------------------
+# Well-know dnscrypt-proxy parameters
+#------------------------------------------------------------
+declare -a KnowParams=("--daemonize"            \
+                       "--local-address"        \
+                       "--resolver-address"     \
+                       "--provider-name"        \
+                       "--provider-key"         \
+                       "--resolvers-list"       \
+                       "--user"                 \
+                       "--ephemeral-keys"       \
+                       "--edns-payload-size"    \
+                       "--client-key"           \
+                       "--logfile"              \
+                       "--loglevel"             \
+                       "--pidfile"              \
+                       "--plugin"               \
+                       "--tcp-only"             \
+                       "--test")
+
+#------------------------------------------------------------
+# IPv4/IPv6 regex filter
+#------------------------------------------------------------
+cIPFilter="(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)"
+
+
+#------------------------------------------------------------
+# Process trace
+#------------------------------------------------------------
+tPid=""
+tProcessOwner=""
+tDateInit=""
+tTimeElap=""
+tDaemonName=""
+tProxyIP=""
+tResolverIP=""
+tResolverName=""
+tResolverKey=""
+tResolverList=""
+tChroot=""
+tOthers=""
+tResolverTest=""
+tDNS1Status=""
+tDNS2Status=""
+tDNS1Args=""
+tDNS2Args=""
+isDNS1Running=false
+isDNS2Running=false
+
+
+#------------------------------------------------------------
+# stuffs
+#------------------------------------------------------------
+InDaemonMode=false
+menu_options=()
+CSVColumn=()
+RunParams=()
+SelectedResolver=""
+RandomResolver=""
+cPrimaryDaemonCmd=""
+cSecondaryDaemonCmd=""
+cInitDnscryptProxy1=""
+cInitDnscryptProxy2=""
+cDNSOrder=""
+
+
+#------------------------------------------------------------
+# usage message:  at prompt use -h
+#------------------------------------------------------------
+
+cUsage="Usage: $0 [options]\n"
+cUsage+="Run in interative mode by default\n"
+cUsage+="options:\n"
+cUsage+="-d   Load DNSCrypt-proxy using a resolver previously selected by user on interactive mode\n"
+cUsage+="-r   Load DNSCrypt-proxy using a resolver randomly choosed by DNSCrypt-loader\n"
+cUsage+="-i   [-i] (<ipv4> | <ipv6> | <all>) Set filter to use addressing ipv4, ipv6 or both\n"
+cUsage+="-l   [-l] (<log> | <nolog> ) Set filter to include resolvers who store dns query logs. (log = No privacy / nolog = privacy) \n"
+cUsage+="-u   Download from official source, performs signature check and updates the resolvers.csv file\n"
+cUsage+="-m   Performs signature check of resolvers.csv file\n"
+cUsage+="-s   Show informations about running DNSCrypt-proxy\n"
+cUsage+="-q   Stops all DNSCrypt-proxy processes preserving workspace\n"
+cUsage+="-k   Stops all DNSCrypt-proxy processes and clean workspace\n"
+cUsage+="-x   Performs DNS Leak Test (beta) \n"
+cUsage+="-h   Show this help\n"
+
+
+#------------------------------------------------------------
+# functions
+#------------------------------------------------------------
+
+sigint() {
+        echo " Exiting... "
+        exit 1
+}
+
+trap sigint INT
+
+
+#------------------------------------------------------------
+# Show Messages
+#------------------------------------------------------------
+
+function FMessage(){
+
+ # options:
+ # box - send message to whiptail box
+ # log - send message to log
+ # con - send message to console
+
+ # will always send message to log for debug
+
+ # clear new line chars
+ msg=$(echo -e $2 | tr '\n' '|')
+
+ while IFS='|' read -ra LogLine; do
+    for i in "${LogLine[@]}"; do
+        logger -t "$cLoaderProcess" -p alert "$i"
+    done
+ done <<< "$msg"
+
+
+ case $1 in
+   "box" ) if [ $InDaemonMode == false ]; then
+              $cGUI --title "$cLoaderProcess" --msgbox "$2"  0 0
+           else
+              echo -e $2
+           fi
+           ;;
+   "con" ) echo -e $2
+           ;;
+   "log" ) return 0 
+           ;;
+  esac
+
+}
+
+
+#------------------------------------------------------------
+# Check Ports conflict
+#------------------------------------------------------------
+
+function FCheckPorts(){
+
+
+ p1=$cPrimaryIP:$cPrimaryPort
+ p2=$cSecondaryIP:$cSecondaryPort
+
+
+ if [ $p1 = $p2 ]; then
+    FMessage "con" "a ip:port conflict was detected.\nPlease select different ports for primary and secondary DNS"
+    exit 1
+ fi
+
+
+ FCheckDaemonRunning
+ if [ $isDNS1Running = false ]; then
+    InUse=$(lsof -i :$cPrimaryPort)
+    if [ $? = 0 ]; then
+       FMessage "con" "Port :$cPrimaryPort is already in use by another system process.\nPlease select different port for primary resolver"
+       exit 1
+    fi
+ fi
+
+
+ if [ $isDNS2Running = false ]; then
+    InUse=$(lsof -i :$cSecondaryPort)
+    if [ $? = 0 ]; then
+       FMessage "con" "Port :$cSecondaryPort is already in use by another system process.\nPlease select different port for secondary resolver"
+       exit 1
+    fi
+ fi
+
+ return 0
+}
+
+
+#------------------------------------------------------------
+# Signature verification
+#------------------------------------------------------------
+
+function FCheckMinisig(){
+
+if [ $cEnableSignCheck = true  ]; then
+
+ ms=$(minisign -VP "$cSIGKey" -m "$cCSVFile")
+
+
+ if [ "$?" -ne "0" ]; then
+  msg="The file resolvers.csv has been changed or is corrupted.\n"
+  msg+="Is strongly recommended download a new copy.\n"
+  msg+="Your system may be leaking DNS queries.\n"
+
+  FMessage "box" "$msg"
+
+ fi
+
+fi
+
+}
+
+
+#------------------------------------------------------------
+# Check if program is installed
+#------------------------------------------------------------
+
+function FCheckProgramFound(){
+  local pf=1
+  # set to 0 if not found
+  hash $1 >/dev/null 2>&1 || { local pf=0; }
+  echo "$pf"
+}
+
+
+
+#------------------------------------------------------------
+# Check packages dependencies installed
+#------------------------------------------------------------
+
+# Check if dnscrypt-proxy is installed
+
+function FCheckPackagesFound(){
+
+ dp=$(FCheckProgramFound "$cProxyBaseName")
+ if [ $dp = 0  ]; then
+    msg="Sorry $cProxyBaseName was not found.\n"
+    msg+="Please check if the program was installed.\n"
+
+    FMessage "box" "$msg"
+    exit 1
+ fi
+
+
+# Check if minisign is installed
+
+ if [ $cEnableSignCheck = true  ]; then
+    ms=$(FCheckProgramFound "minisign")
+    if [ $ms = 0  ]; then
+       msg="Sorry Minisgn was not found.\n"
+       msg+="Please check if the program was installed.\n"
+
+       FMessage "box" "$msg"
+       exit 1
+    fi
+ fi
+}
+
+#------------------------------------------------------------
+# Check status of resolvers.csv
+#------------------------------------------------------------
+
+function FCheckFiles(){
+
+ # set environment 
+ mkdir -p $cConfigBaseDir
+ mkdir -p $cTempDir
+ touch $cPrimaryConfigFile
+ touch $cSecondaryConfigFile
+ touch $cWorkFile
+ rm -f $cCSVTemp
+ rm -f $cSIGTemp
+
+
+# file found ?
+
+if [ ! -e $cCSVFile ]; then
+    msg="File dnscrypt-resolvers.csv not found \n\n"
+    msg+="Please select Update option from menu\n"
+    msg+="to download a new version from official source"
+
+    FMessage "box" "$msg"
+
+    return 1
+fi
+
+
+# file is empty?
+
+if [ ! -s $cCSVFile ]; then
+
+    msg="File /dnscrypt-resolvers.csv is empty \n\n"
+    msg+="Please select Update option from menu\n"
+    msg+="to download a new version from official source"
+
+    FMessage "box" "$msg"
+
+    return 1
+fi
+
+return 0
+
+}
+
+
+#------------------------------------------------------------
+# Kill process
+#------------------------------------------------------------
+
+function FKillProcess(){
+
+  DPpid=$(pidof "$1")
+  if [ "$DPpid" != "" ]; then
+    kill -9 $(pidof "$1")
+  fi
+
+  return;
+}
+
+
+#------------------------------------------------------------
+# is primary and secondary DNS running
+#------------------------------------------------------------
+
+function FCheckDaemonRunning(){
+
+
+ tDNS1Args=""
+ tDNS2Args=""
+
+ tDNS1Pid=""
+ tDNS2Pid=""
+
+ tDNS1=$cPrimaryIP:$cPrimaryPort
+ tDNS2=$cSecondaryIP:$cSecondaryPort
+
+ tDNS1Args=$(ps -C $cProxyBaseName -o args= | grep "$tDNS1" )
+ tDNS2Args=$(ps -C $cProxyBaseName -o args= | grep "$tDNS2" )
+
+
+ if [ "$tDNS1Args" != "" ]; then
+    tDNS1Status="Running"
+    isDNS1Running=true
+ else
+    tDNS1Status="Stopped"
+    isDNS1Running=false
+ fi
+
+
+ if [ "$tDNS2Args" != "" ]; then
+    tDNS2Status="Running"
+    isDNS2Running=true
+ else
+    tDNS2Status="Stopped"
+    isDNS2Running=false
+ fi
+
+
+}
+
+
+#------------------------------------------------------------
+# Process trace
+#------------------------------------------------------------
+
+function FGetProcessTrace(){
+
+ tPid=""
+ tProcessOwner=""
+ tDateInit=""
+ tTimeElap=""
+ tDaemonName=""
+ tProxyIP=""
+ tResolverIP=""
+ tResolverName=""
+ tResolverKey=""
+ tResolverList=""
+ tChroot=""
+ tOthers=""
+ tResolverTest=""
+ tDNS1Status=""
+ tDNS2Status=""
+ tPid1=""
+ tPid2=""
+ tDNS1Args=""
+ tDNS2Args=""
+
+
+ IpPort=$1:$2
+
+ FCheckDaemonRunning
+ if [ $isDNS1Running = false ]; then
+    if [ $IpPort == $tDNS1 ]; then
+       return
+    fi
+ fi
+
+ if [ $isDNS2Running = false ]; then
+    if [ $IpPort == $tDNS2 ]; then
+       return
+    fi
+ fi
+
+ # Support to kill specific dnscypt instances Primary or Secundary
+ if [ "$3" =  "kill" ]; then
+    tPid=$(ps -p "$(pidof $cProxyApp)" -o pid= -o user= -o stime= -o etime= -o args= | grep $IpPort | awk '{print $1 = substr($1, 1, 100)}')
+    if [ "$tPid" != "" ]; then
+       FMessage "log" "killing DNSCrypt-proxy process $tPid "
+       kill -9 "$tPid"
+       return
+    fi
+ fi
+
+
+ tProcess=$( ps -p "$(pidof $cProxyApp)" -o pid= -o user= -o stime= -o etime= -o args= | grep $IpPort )
+
+ # PID
+ tPid=$(          echo $tProcess | awk '{print $1 = substr($1, 1, 100)}')
+
+ # Process owner
+ tProcessOwner=$( echo $tProcess | awk '{print $2 = substr($2, 1, 100)}' )
+
+ # Date start
+ tDateInit=$(     echo $tProcess | awk '{print $3 = substr($3, 1, 100)}' )
+
+ # Elsapsed time
+ tTimeElap=$(     echo $tProcess | awk '{print $4 = substr($4, 1, 100)}')
+
+ # Daemon name
+ tDaemonName=$(   echo $tProcess | awk '{print $5 = substr($5, 1, 100)}')
+
+ # Local Address
+ tProxyIP=$(      echo $tProcess | awk '{print $7 = substr($7, 17, 100)}')
+
+ # Resolver Address
+ tResolverIP=$(   echo $tProcess | awk '{print $8 = substr($8, 20, 100)}')
+
+ # Provider name
+ tResolverName=$( echo $tProcess | awk '{print $9 = substr($9, 17, 100)}')
+
+ # Provider Key
+ tResolverKey=$(  echo $tProcess | awk '{print $10 = substr($10, 1, 100)}')
+
+ # Resolver list
+ tResolverList=$( echo $tProcess | awk '{print $11 = substr($11, 1, 100)}')
+
+ # chroot user
+ tChroot=$(       echo $tProcess | awk '{print $12 = substr($12, 1, 100)}')
+
+ # Other params
+ tOthers=$(       echo $tProcess | awk '{print $13 = substr($13, 1, 100)}')
+
+ # Basic Dig Test
+ tResolverTest=$( dig $cDigTarget +time=$cDigTime +tries=$cDigTries +noall +stats  @$1  -p $2 | awk '/Query/{sum+=$4}END{print "Dig Query Time  : "sum" msec"}')
+
+
+}
+
+#------------------------------------------------------------
+# Show dnscrypt-proxy daemon status
+#------------------------------------------------------------
+function FShowDaemonStatus(){
+
+
+ FCheckDaemonRunning
+ if [ $isDNS1Running = false ] && [ $isDNS2Running = false ]; then
+    msg="Warning: $cProxyApp is not running.\n"
+    msg+="Please select a new resolver to start"
+    FMessage "box" "$msg"
+    return
+ fi
+
+
+    # Primary DNS
+    FGetProcessTrace $cPrimaryIP $cPrimaryPort
+
+    SAVEIFS=$IFS
+    IFS='%'
+
+    # Primary DNS
+    sts=$(printf   "%-16s %s" " DNSCrypt-proxy"   "Loaded instances" )
+    sts+=$(printf  "\n\n%-16s %s" " --- Configs ---"  " " )
+    sts+=$(printf  "\n%-16s %s" " Running as     =" "$tProcessOwner" )
+    sts+=$(printf  "\n%-16s %s" " Anonymous only =" "$cAnonymousOnly" )
+    sts+=$(printf  "\n%-16s %s" " Sign check     =" "$cEnableSignCheck" )
+    sts+=$(printf  "\n%-16s %s" " IP Version     =" "$cIPVersion" )
+    sts+=$(printf  "\n\n%-16s %s" " --- Primary DNS ---"  " " )
+    sts+=$(printf  "\n%-16s %s" " Status         =" "$tDNS1Status [$tPid]" )
+    sts+=$(printf  "\n%-16s %s" " Execution time =" "$tDateInit $tTimeElap (Date days-hh:mm:ss)" )
+    sts+=$(printf  "\n%-16s %s" " Proxy IP       =" "$tProxyIP" )
+    sts+=$(printf  "\n%-16s %s" " Resolver IP    =" "$tResolverIP" )
+    sts+=$(printf  "\n%-16s %s" " Resolver name  =" "$tResolverName" )
+    sts+=$(printf  "\n%-16s %s" " Resolver test  =" "$tResolverTest" )
+
+    # Secondary DNS
+    FGetProcessTrace $cSecondaryIP $cSecondaryPort
+    sts+=$(printf  "\n\n%-16s %s" " --- Secondary DNS ---"  " " )
+    sts+=$(printf  "\n%-16s %s" " Status         =" "$tDNS2Status [$tPid]" )
+    sts+=$(printf  "\n%-16s %s" " Execution time =" "$tDateInit $tTimeElap (Date days-hh:mm:ss)" )
+    sts+=$(printf  "\n%-16s %s" " Proxy IP       =" "$tProxyIP" )
+    sts+=$(printf  "\n%-16s %s" " Resolver IP    =" "$tResolverIP" )
+    sts+=$(printf  "\n%-16s %s" " Resolver name  =" "$tResolverName" )
+    sts+=$(printf  "\n%-16s %s" " Resolver test  =" "$tResolverTest" )
+
+
+    FMessage "box" "$sts"
+
+    IFS=$SAVEIFS
+
+}
+
+
+#------------------------------------------------------------
+# Secure resolver filter
+#------------------------------------------------------------
+function FShowPrivacyMenu(){
+
+ sec="Hide"
+ sec=$($cGUI --title "Resolver Privacy" --radiolist \
+     "Resolvers who store logs of your DNS queries" 10 30 3 \
+     "Show" "resolvers" OFF \
+     "Hide" "resolvers" OFF 3>&1 1>&2 2>&3)
+     exitstatus=$?
+     if [ $exitstatus = 0 ]; then
+        case $sec in
+             Show ) cAnonymousOnly=false
+             ;;
+             Hide ) cAnonymousOnly=true
+             ;;
+        esac
+     else
+        return 1
+     fi
+
+}
+
+
+#------------------------------------------------------------
+# IP Version user filter
+#------------------------------------------------------------
+function FShowIPFilterMenu(){
+
+ ipv="all"
+ ipv=$($cGUI --title "IP Version Filter" --radiolist \
+     "Filter resolvers by ip version" 10 50 3 \
+     "all"  "Show IPV4 and IPV6 resolvers" OFF \
+     "ipv4" "Show only IPV4 resolvers" OFF \
+     "ipv6" "Show only IPV6 resolvers" OFF 3>&1 1>&2 2>&3)
+     exitstatus=$?
+     if [ $exitstatus = 0 ]; then
+        cIPVersion=$ipv
+     else
+        return 1
+     fi
+
+}
+
+
+function FShowDNSOrderMenu(){
+
+ dns12=""
+ dns12=$($cGUI --title "DNS Preference Filter" --radiolist \
+     "Use Selected resolver as " 10 50 3 \
+     "1" "Primary DNS" ON \
+     "2" "Secondary DNS" OFF  3>&1 1>&2 2>&3)
+     exitstatus=$?
+     if [ $exitstatus = 0 ]; then
+        a=1
+     else
+        return 1
+     fi
+
+}
+
+
+#------------------------------------------------------------
+# Save daemon info to config file
+#------------------------------------------------------------
+
+function FSaveParameters(){
+
+ # Test if dnscrypt-proxy running
+ FCheckDaemonRunning
+
+ if [ $isDNS1Running = true ]; then
+    # empty config file
+    > $cPrimaryConfigFile
+    echo $tDNS1Args | tr " " "\n" > $cPrimaryConfigFile
+ fi
+     
+
+ if [ $isDNS2Running = true ]; then
+    # empty config file
+    > $cSecondaryConfigFile
+    echo $tDNS2Args | tr " " "\n"  > $cSecondaryConfigFile
+ fi
+}
+
+
+#------------------------------------------------------------
+# Process config files
+#------------------------------------------------------------
+
+function FGetSavedParameters(){
+
+ # Load only well-know dnscrypt-proxy parameters to avoid possible command injection
+
+ if [ $cDNSOrder = "primary"  ]; then
+
+    if [ -s $cPrimaryConfigFile ]; then
+
+       for i in "${KnowParams[@]}"; do
+           rParam=$( awk -F"=" -v i="$i" '$1 == i {print $2}'  $cPrimaryConfigFile)
+           case $i in
+               --resolver-address )   CSVColumn[0]=$rParam;;
+               --provider-name    )   CSVColumn[1]=$rParam;;
+               --provider-key     )   CSVColumn[2]=$rParam;;
+               *) continue
+           esac
+       done
+
+    else
+      # if no previous DNS resolver was selected provides new one randomly
+      # FGetRandomResolvers ????
+      return 1
+    fi
+ fi
+
+ if [ $cDNSOrder = "secondary"  ]; then
+
+    if [ -s $cSecondaryConfigFile ]; then
+
+       for i in "${KnowParams[@]}"; do
+           rParam=$( awk -F"=" -v i="$i" '$1 == i {print $2}' $cSecondaryConfigFile)
+           case $i in
+               --resolver-address )   CSVColumn[0]=$rParam;;
+               --provider-name    )   CSVColumn[1]=$rParam;;
+               --provider-key     )   CSVColumn[2]=$rParam;;
+               *) continue
+           esac
+       done
+
+    else
+      # if no previous DNS resolver was selected provides new one randomly
+      # FGetRandomResolvers ????
+      return 1
+    fi
+
+ fi
+
+return 0
+}
+
+
+
+#------------------------------------------------------------
+# execute script in daemon mode
+#------------------------------------------------------------
+function FRestoreDaemonMode(){
+
+ FCheckPackagesFound
+ FCheckFiles
+ FCheckMinisig
+
+ FMessage "log" "Loading $cProxyApp"
+
+ case $1 in
+      random ) > $cPrimaryConfigFile
+               > $cSecondaryConfigFile
+               cDNSOrder="primary"
+               FGetRandomResolvers
+               FStartResolver
+               wait
+               cDNSOrder="secondary"
+               FGetRandomResolvers
+               FStartResolver
+               ;;
+     restore ) FMessage "log" "Restoring previous dnscript-loader session"
+               cDNSOrder="primary"
+               FGetSavedParameters
+               if [ $? = 0 ]; then
+                  FStartResolver
+               else
+                  FGetRandomResolvers
+                  FStartResolver
+               fi
+               wait
+               cDNSOrder="secondary"
+               FGetSavedParameters
+               if [ $? = 0 ]; then 
+                  FStartResolver
+               else
+                  FGetRandomResolvers
+                  FStartResolver
+               fi   
+               ;;
+ esac
+
+ return 0
+
+}
+
+
+
+#------------------------------------------------------------
+# Excute daemon in interactive mode to restore previous session
+#------------------------------------------------------------
+function FRestoreInteractiveMode(){
+
+ FMessage "log" "Restoring previous dnscript-loader session"
+ cDNSOrder="primary"
+ FGetSavedParameters
+ if [ $? = 0 ]; then
+    FStartResolver
+ else
+    FMessage "box" "Sorry, no previous primary resolver found"
+    return 1
+ fi
+
+ cDNSOrder="secondary"
+ FGetSavedParameters
+ if [ $? = 0 ]; then
+    FStartResolver
+ else
+    FMessage "box" "Sorry, no previous secondary resolver found"
+    return 1
+ fi
+
+ return 0
+
+}
+
+
+#------------------------------------------------------------
+# Download resolvers.csv from official source
+#------------------------------------------------------------
+
+function FDownloadResolvers(){
+ success=0
+
+ # Basic cURL connection test filtering "HTTP/1.1" pattern to extract http status
+ # HTTP/1.1 200 OK
+ # HTTP/1.1 301 Moved Permanently (if file not found)
+ # and none if internet or DNS fail
+
+
+ FMessage "log" "Downloading, updating and verifying $cProxyApp resolvers.csv"
+
+
+ case "$(curl --no-buffer --head --silent $cCSVURL)" in
+      *"200 OK"*)                  HttpStatus="200";;
+      *"404 Not Found"*)           HttpStatus="404";;
+      *"301 Moved Permanently"*)   HttpStatus="301";;
+      *""*)                        HttpStatus="?";;
+ esac
+
+ if [ ${HttpStatus} == "301" ] || [ ${HttpStatus} == "404" ] || [ ${HttpStatus} == "?" ]; then
+    msg="Remote file $cCSVBaseName not found. \n\n"
+    msg+="Please verify internet connection and URL \n"
+    msg+="HTTP Error: ${HttpStatus}\n"
+    msg+="$cCSVURL \n"
+
+    FMessage "box" "$msg"
+
+    return 1
+ else
+
+    # Get resolver.csv file size to calculations
+    length=$(curl -s -I $cCSVURL  | awk '/Length/ {print $2}')
+
+    # use cURL to download resolver.csv with gauge
+    curl  -s  $cCSVURL -o $cCSVTemp --trace-ascii /dev/stdout |\
+    awk -v total=${length} -v partial=0 -v percent=0 ' /Recv data/ {partial += $4} { percent = (partial*100)/total  } {printf "%.0f\n", percent }' |\
+    $cGUI --title "Download" --gauge "Downloading resolvers.csv ..." 0 0 0
+
+    # Get resolver.csv.minisig file size to calculations
+    length=$(curl -s -I $cSIGURL  | awk '/Length/ {print $2}')
+
+    # use cURL to download resolver.csv.minisig with gauge
+    curl  -s  $cSIGURL -o $cSIGTemp --trace-ascii /dev/stdout |\
+    awk -v total=${length} -v partial=0 -v percent=0 ' /Recv data/ {partial += $4} { percent = (partial*100)/total  } {printf "%.0f\n", percent }' |\
+    $cGUI --title "Download" --gauge "Downloading resolvers.csv signature ..." 0 0 0
+
+
+    if [ -e $cCSVTemp ] && [ -s $cCSVTemp ]; then 
+       if [ -e $cCSVFile ]; then 
+          # backup and update dnscrypt-resolvers.csv in /usr/local/share/dnscrypt-proxy/
+          mv -f $cCSVFile $cCSVFile.OLD
+       fi
+          mv -f $cCSVTemp $cCSVFile 
+    else
+       FMessage "box" "Error: Download Failed\n$cCSVURL"
+    fi
+
+
+
+    if [ -e $cSIGTemp ] && [ -s $cSIGTemp ]; then 
+       if [ -e $cSIGFile ]; then 
+          # backup and update dnscrypt-resolvers.csv.minisig in /usr/local/share/dnscrypt-proxy/
+          mv -f $cSIGFile $cSIGFile.OLD
+       fi
+          mv -f $cSIGTemp $cSIGFile
+    else
+       FMessage "box" "Error: Download Failed\n$cSIGURL"
+    fi
+
+ fi
+
+}
+
+
+#------------------------------------------------------------
+# Get full list from resolvers.csv file
+#------------------------------------------------------------
+# dnscrypt-resolvers.csv Columns
+# 1 Name
+# 2 Full name
+# 3 Description
+# 4 Location
+# 5 Coordinates
+# 6 URL
+# 7 Version
+# 8 DNSSEC validation
+# 9 No logs
+# 10 Namecoin
+# 11 Resolver address
+# 12 Provider name
+# 13 Provider public key
+# 14 Provider public key TXT record
+#------------------------------------------------------------
+
+function FGetResolvers(){
+
+ FCheckFiles
+
+ SAVEIFS=$IFS
+ IFS=\|
+
+ Rec=0
+
+ while read -r ROW
+ do
+
+     # skip .csv header
+     ((Rec++));
+     if [ $Rec -eq 1 ]; then
+         continue
+     fi
+
+     # Get Resolver Address, Provider name, Provider public key, Full name and No logs columns from .CSV
+     SelCols=$( echo  $ROW |  awk  -vFPAT='[^,]*|"[^"]*"'  '{ print $11"|",$12"|",$13"|",$2"|",$9 } '   )
+
+     # Convert string to array
+     CSVColumn=($SelCols)
+
+     # clear columns spaces
+     CSVColumn[0]=$(echo ${CSVColumn[0]} | tr -d ' ')
+     CSVColumn[1]=$(echo ${CSVColumn[1]} | tr -d ' ')
+     CSVColumn[2]=$(echo ${CSVColumn[2]} | tr -d ' ')
+     CSVColumn[3]=$(echo ${CSVColumn[3]} | tr -d ' ')
+     CSVColumn[4]=$(echo ${CSVColumn[4]} | tr -d ' ')
+
+
+    echo ${CSVColumn[0]}","${CSVColumn[1]}","${CSVColumn[2]}","${CSVColumn[3]}","${CSVColumn[4]} >> $cWorkFile
+
+
+ done <  $cCSVFile
+
+ IFS=$SAVEIFS
+
+ return 0
+}
+
+
+
+#------------------------------------------------------------
+# Get one randomn resolver from resolvers.csv file
+#------------------------------------------------------------
+
+function FGetRandomResolvers(){
+
+ FCheckFiles
+
+ SAVEIFS=$IFS
+ IFS=\|
+
+ ipvmatch=false
+
+ while [ $ipvmatch == false ]; do
+    # Get Resolver Address, Provider name, Provider public key, Full name and No logs columns from .CSV
+    # skip .csv header
+    sParams=$(sed 1d $cCSVFile | shuf  -n 1  | awk  -vFPAT='[^,]*|"[^"]*"' '{ print $11"|",$12"|",$13"|",$2"|",$9 }' )
+
+    # Convert string to array
+    CSVColumn=($sParams)
+
+    # Remove spaces
+    CSVColumn[0]=$(echo ${CSVColumn[0]} | tr -d ' ')
+    CSVColumn[1]=$(echo ${CSVColumn[1]} | tr -d ' ')
+    CSVColumn[2]=$(echo ${CSVColumn[2]} | tr -d ' ')
+    CSVColumn[3]=$(echo ${CSVColumn[3]} | tr -d ' ')
+    CSVColumn[4]=$(echo ${CSVColumn[4]} | tr -d ' ')
+
+
+    # force randomization inside ipv4/ipv6/all filter
+    # This is not an IP address validation it's just a differential test
+    ipv4=$(echo "${CSVColumn[0]}" | grep -Ew  "$cIPFilter")
+    ipv6=$(echo "${CSVColumn[0]}" | grep -Ewv "$cIPFilter")
+
+
+    # if cAnonymousOnly parameter is true only anonymous resolvers will be displayed
+    if [ $cAnonymousOnly = true ]; then
+       if [ ${CSVColumn[4]} = "NO" ] || [ ${CSVColumn[4]} = "No" ] || [ ${CSVColumn[4]} = "no" ]; then
+          continue
+       fi
+    fi
+
+
+    if [[ $ipv4 != "" ]]; then
+       if [ $cIPVersion = "ipv4" ] || [ $cIPVersion = "all" ]; then
+          ipvmatch=true
+       fi
+    fi
+
+
+    if [[ $ipv6 != "" ]]; then
+       if [ $cIPVersion = "ipv6" ] || [ $cIPVersion = "all" ]; then
+          ipvmatch=true
+       fi
+    fi
+
+ done
+
+
+ IFS=$SAVEIFS
+
+}
+
+
+#------------------------------------------------------------
+# Start dnscrypt using selected resolver
+#------------------------------------------------------------
+
+function FStartResolver(){
+
+ # Load primary
+ if [ $cDNSOrder = "primary"  ]; then
+
+    # Quit previous dnscrypt-proxy instance
+    FGetProcessTrace $cPrimaryIP $cPrimaryPort "kill"
+
+    # Execute dnscrypt-proxy
+    $cDaemon $cLocalAddress1 $cResolverAddress=${CSVColumn[0]} $cProviderName=${CSVColumn[1]} $cProviderKey=${CSVColumn[2]} $cResolverList $cUser $cOtherParams
+
+    # Test if dnscrypt-proxy running
+    FCheckDaemonRunning
+
+    if [ $isDNS1Running = true ]; then
+
+       # empty config file
+       > $cPrimaryConfigFile
+
+       # save sucessfull daemon loaded info to config file.
+       # Used in -daemonmode (see command line options)
+       echo $tDNS1Args | tr " " "\n" > $cPrimaryConfigFile
+
+       FMessage "box" "Loading primary $cProxyApp success."
+       FShowDaemonStatus;
+
+    else
+       FMessage "box" "Loading failed:\n $cDaemon\n $cLocalAddress1\n $cResolverAddress=${CSVColumn[0]}\n $cProviderName=${CSVColumn[1]}\n $cProviderKey=${CSVColumn[2]}\n $cResolverList\n  $cUser\n $OtherParams "
+    fi
+ fi
+
+
+ # Load secondary
+ if [ "$cDNSOrder" = "secondary"  ]; then
+
+    # Quit previous dnscrypt-proxy instance
+    FGetProcessTrace $cSecondaryIP $cSecondaryPort "kill"
+
+    # Execute dnscrypt-proxy
+    $cDaemon $cLocalAddress2 $cResolverAddress=${CSVColumn[0]} $cProviderName=${CSVColumn[1]} $cProviderKey=${CSVColumn[2]} $cResolverList $cUser $cOtherParams
+
+    # Test if dnscrypt-proxy running
+    FCheckDaemonRunning
+    if [ $isDNS2Running = true ]; then
+
+       # empty config file
+       > $cSecondaryConfigFile
+
+       # save sucessfull daemon loaded info to config file.
+       # Used in -initmode (see command line options)
+       echo $tDNS2Args | tr " " "\n"  > $cSecondaryConfigFile
+
+       FMessage "box" "Loading secondary $cProxyApp success."
+       FShowDaemonStatus;
+
+    else
+         FMessage "box" "Loading failed:\n $cDaemon\n $cLocalAddress2\n $cResolverAddress=${CSVColumn[0]}\n $cProviderName=${CSVColumn[1]}\n $cProviderKey=${CSVColumn[2]}\n $cResolverList\n  $cUser\n $OtherParams "
+    fi
+
+ fi
+
+}
+
+
+#------------------------------------------------------------
+# Show dnscrypt-proxy resolvers menu (full/random)
+#------------------------------------------------------------
+
+function FShowResolversMenu(){
+
+ FCheckFiles
+
+ sParams=()
+ menu_options=()
+ Rec=0
+
+ # Filter by IP Version
+ # ipv4: match cIPFilter
+ # ipv6: match inverse cIPFiter (-Ev)
+ # all: match inverse of nothing is all
+
+ case  $cIPVersion in
+       ipv4 ) filter="grep -E  $cIPFilter $cWorkFile";;
+       ipv6 ) filter="grep -Ev $cIPFilter $cWorkFile";;
+       all  ) filter="grep -Ev $'' $cWorkFile";;
+ esac
+
+
+ while read -r ROW
+ do
+   # Get Resolver Address, Provider name, Provider public key, Full name and No logs columns from .CSV
+   sParams=$( echo  $ROW | awk  -vFPAT='[^,]*|"[^"]*"' '{ print $1,$2,$3,$4,$5 }'  )
+
+   # Convert string to array
+   CSVColumn=($sParams)
+
+
+   # if cAnonymousOnly parameter is true only anonymous resolvers will be displayed
+   if [ $cAnonymousOnly = true ]; then
+      if [ ${CSVColumn[4]} = "NO" ] || [ ${CSVColumn[4]} = "No" ] || [ ${CSVColumn[4]} = "no" ]; then
+         continue
+      fi
+   fi
+
+
+   # Padding menu lines
+
+   CSVColumn[0]=$(echo ${CSVColumn[0]} | awk '{printf "%-40s\n", $0}')
+   CSVColumn[3]=$(echo ${CSVColumn[3]} | awk '{printf "%-40s\n", $0}')
+
+   # Populate menu with Resolver Address and Fullname .CSV columns
+   menu_options+=("${CSVColumn[0]}" "${CSVColumn[3]}" )
+
+   ((Rec++));
+
+ done < <($filter)
+
+
+  # Show menu
+  SelectedResolver=$($cGUI --title "Showing $Rec $cIPVersion Resolver(s)" --menu "Choose an option" 30 120 23 "${menu_options[@]}" 3>&1 1>&2 2>&3)
+  exitstatus=$?
+
+  if [ $exitstatus != 0 ]; then
+      return $exitstatus
+  fi
+
+  # fix bracket effect in ipv6 address and adjust columns
+  SelectedResolver=$(echo -e "$SelectedResolver" | tr -d '[')
+
+
+  # Get Resolver Address, Provider name, Provider public key, Full name and No logs columns from .CSV
+  sRunParams=$( cat $cWorkFile | grep -w $SelectedResolver |  awk  -vFPAT='[^,]*|"[^"]*"' '{ print $1,$2,$3,$4,$5 }'  )
+
+  # Convert string to array
+  CSVColumn=($sRunParams)
+
+
+  dlg="Run DNSCrypt-proxy using selected parameters?\n\n"
+  dlg+=" --resolver-address=  ${CSVColumn[0]}\n"
+  dlg+=" --provider-name   =  ${CSVColumn[1]}\n"
+  dlg+=" --provider-key    =  ${CSVColumn[2]}\n"
+  dlg+=" Full Name         =  ${CSVColumn[3]}\n"
+  dlg+=" Anonymous?        =  ${CSVColumn[4]}\n\n"
+  dlg+=" The server status will be tested, please wait. \n"
+
+ $cGUI --title "Run DNSCrypt-proxy" --yesno "$dlg" 0 0
+ if [ $? = 0 ]; then
+    FMessage "log" "Loading $cProxyApp"
+    FStartResolver
+ fi
+
+}
+
+
+#------------------------------------------------------------
+# DNS LEAK TEST (IPV4)
+#
+# This function is just a command line bonus. It depends of third party software that can change any time.
+#
+# Note: DNS-OARC is not a DNS Leak Test site itself but produces the exactly same results when we observe the DNS Servers tested
+# This site was chosen because is secure and it does not use javascript, permitting download of data inside html code
+#
+#
+# No magic here. This function extracts the DNS IP addresses detected on entropy.dns-oarc.net/test test page.
+# So you can check if the DNSCrypt-proxy resolvers you choosed really is working.
+#
+# But the most important is verify if your real IP address is listed.
+# If yes, it means you are not protected by VPN or if you are using DNSCrypt-proxy as Forwarder on DNS (BIND) server,
+# the directive "Forward only;"  must be applied,
+# since this server will forward all requests and should not attempt to resolve requests on its own,
+# bypassing DNSCrypt-proxy.
+#
+# Obviously, you can use DNS Leak test pages to do the same.
+# Please refer to https://www.dns-oarc.net/ for details
+#
+#------------------------------------------------------------
+function FCheckDNSLeak(){
+
+ cDNSIPFilter="(\\b\\name\\b\=.[[:digit:]]{1,3}\.[[:digit:]]{1,3}\.[[:digit:]]{1,3}\.[[:digit:]]{1,3}.)"
+
+ cHTMLTestPage="$cTempDir/index.html"
+ cDnsOarcTestURL="entropy.dns-oarc.net/test"
+
+ SAVEIFS=$IFS
+ IFS='%'
+
+ lkt=$(printf  "%-16s %s" " --- Running DNS Leak Test. Please wait ---"  " " )
+ FMessage "con" "$lkt"
+
+ rm -f $cHTMLTestPage
+ # wget  -nv -O $cHTMLTestPage $cDnsOarcTestURL
+ # use  curl -s -L -o $cHTMLTestPage $cDnsOarcTestURL
+ # to curl silent mode
+ curl  -L -o $cHTMLTestPage $cDnsOarcTestURL
+
+ FShowDaemonStatus
+
+ lkt=$(printf  "\n\n%-16s %s" " --- DNS Servers detected during DNS Leak Test ---"  " " )
+ FMessage "con" "$lkt"
+
+ IFS=$SAVEIFS
+
+ # Filter file by html tag and IP pattern
+ sIP=$(  grep -oEw "$cDNSIPFilter" $cHTMLTestPage | awk -F'"' '{print $2}'  )
+
+ declare -a "aIP=($sIP)"
+
+ for i in "${aIP[@]}"
+ do
+  lkt=$( printf  "%-16s %-16s %s\n" " Your DNS Server: " "$i" "$(dig +noall +answer +short -x $i) "  )
+  FMessage "con" $lkt
+ done
+
+}
+
+
+#------------------------------------------------------------
+# START GRAPHIC MODE
+#------------------------------------------------------------
+
+function FShowTasksMenu(){
+
+while :
+do
+
+#  SelectedTask=$($cGUI --title "DNSCrypt-proxy tasks" --menu "Choose your option" 20 60 12 \
+ SelectedTask=$($cGUI --title "DNSCrypt-proxy tasks" --menu "Choose your option" 22 62 14 \
+      "1"  "Set primary DNS resolver"    \
+      "2"  "Set secondary DNS resolver"  \
+      "3"  "Set resolvers randomly "     \
+      " "  ""                            \
+      "4"  "Set IP Version Filter"       \
+      "5"  "Set Privacy Filter  "        \
+      " "  ""                            \
+      "6"  "DNSCrypt-proxy status"       \
+      " "  ""                            \
+      "7"  "Update resolver.csv from official source" \
+      " "  ""                            \
+      "8"  "Stop DNSCrypt-proxy"         \
+      "9"  "Restore previous session"    \
+      "10" "Quit"  3>&1 1>&2 2>&3)
+  exitstatus=$?
+
+  case $SelectedTask in
+        1) cDNSOrder="primary"
+           > $cWorkFile
+           FGetResolvers
+           FShowResolversMenu
+        ;;
+
+        2) cDNSOrder="secondary"
+           > $cWorkFile
+           FGetResolvers
+           FShowResolversMenu
+        ;;
+
+        3) $cGUI --title "DNSCrypt-proxy" --yesno "Set primary and secondary DNS resolvers randomly? " 0 0
+           if [ $? = 0 ]; then
+              > $cWorkFile
+              cDNSOrder="primary"
+              FGetRandomResolvers
+              FStartResolver
+              wait
+              cDNSOrder="secondary"
+              FGetRandomResolvers
+              FStartResolver
+              wait
+              FShowDaemonStatus
+           fi
+        ;;
+
+        4) FShowIPFilterMenu
+           if [ $? != 0 ]; then
+              continue
+           fi
+        ;;
+
+        5) FShowPrivacyMenu
+           if [ $? != 0 ]; then
+              continue
+           fi
+        ;;
+
+        6) FShowDaemonStatus
+        ;;
+
+        7) $cGUI --title "DNSCrypt-proxy" --yesno "Update resolvers.csv from official source? " 0 0
+           if [ $? = 0 ]; then
+              FDownloadResolvers
+              > $cWorkFile
+              FGetResolvers
+              FCheckMinisig
+              FShowResolversMenu
+           fi
+        ;;
+
+        8)  $cGUI --title "DNSCrypt-proxy" --yesno "Are you sure you want to stop DNSCrypt-proxy? " 0 0
+            if [ $? = 0 ]; then
+               FGetProcessTrace $cPrimaryIP $cPrimaryPort "kill"
+               FGetProcessTrace $cSecondaryIP $cSecondaryPort "kill"
+               FMessage "box" "$cProxyApp process shutdown.To start $cProxyApp select new resolvers"
+            fi
+        ;;
+
+        9) $cGUI --title "DNSCrypt-proxy" --yesno "Try restore previous resolvers session? " 0 0
+           if [ $? = 0 ]; then
+              FRestoreInteractiveMode
+           fi
+        ;;
+
+        10) clear
+           exit
+        ;;
+
+        " ") continue
+        ;;
+
+        *) clear
+           exit
+        ;;
+
+  esac
+
+done
+
+}
+
+
+#------------------------------------------------------------
+# START COMMAND LINE MODE
+#------------------------------------------------------------
+
+
+#------------------------------------------------------------
+# Check privileges
+#------------------------------------------------------------
+
+
+if [ $(id -u) != 0 ]; then
+   FMessage "con" "You need root privileges to run this script."
+   exit 1
+fi
+
+
+# if no parameters execute interactive mode
+# redirectios to /dev/null to hide whiptail screens
+
+if [ $# -ne 0 ]; then
+
+  InDaemonMode=true
+
+  while [ $# -gt 0 ]; do
+       while getopts ":l:i:drnumsqkhx" opt; do
+       FCheckPorts
+
+             case "$opt" in
+                  d ) FRestoreDaemonMode "restore" </dev/null >/dev/null 2>&1 & disown
+                      exit 0
+                      ;;
+
+                  r ) FRestoreDaemonMode "random" </dev/null >/dev/null 2>&1 & disown
+                      exit 0
+                      ;;
+
+                  l ) if [ "$OPTARG" = "nolog" ] || [ "$OPTARG" = "log" ]; then
+                         if [ "$OPTARG" = "nolog" ]; then
+                            cAnonymousOnly=true
+                         else
+                            cAnonymousOnly=false
+                         fi
+                      else
+                         FMessage "con" "incorrect required parameter for Option $OPTARG"
+                         exit 1
+                      fi
+                      ;;
+
+                  i ) if [ "$OPTARG" = "ipv4" ] || [ "$OPTARG" = "ipv6" ] || [ "$OPTARG" = "all" ]; then
+                         cIPVersion="$OPTARG"
+                      else
+                         FMessage "con" "incorrect required parameter for Option $OPTARG"
+                         exit 1
+                      fi
+                      ;;
+
+                  u ) FDownloadResolvers > /dev/null
+                      wait
+                      FCheckMinisig
+                      wait
+                      exit 0
+                      ;;
+
+                  m ) FCheckMinisig
+                      exit 0
+                      ;;
+
+                  s ) FShowDaemonStatus
+                      exit 0
+                      ;;
+
+                  q ) FMessage "con"  "DNSCrypt-proxy process shutdown. "
+                      FGetProcessTrace $cPrimaryIP $cPrimaryPort "kill"
+                      FGetProcessTrace $cSecondaryIP $cSecondaryPort "kill"
+                      exit 0
+                      ;;
+
+                  k ) FMessage "con"  "DNSCrypt process shutdown. You need run $0 in interactive mode to select a new resolver to DNSCrypt-proxy"
+                      FGetProcessTrace $cPrimaryIP $cPrimaryPort "kill"
+                      FGetProcessTrace $cSecondaryIP $cSecondaryPort "kill"
+                      # Create (if necessary) and backup config and work files
+                      touch $cPrimaryConfigFile   && rm -f $cPrimaryConfigFile".old"   && cp $cPrimaryConfigFile   $cPrimaryConfigFile".old"   && > $cPrimaryConfigFile
+                      touch $cSecondaryConfigFile && rm -f $cSecondaryConfigFile".old" && cp $cSecondaryConfigFile $cSecondaryConfigFile".old" && > $cSecondaryConfigFile
+                      > $cWorkFile
+                      exit 0
+                      ;;
+
+                  x ) FCheckDNSLeak
+                      exit 0
+                      ;;
+
+                  h ) printf "$cUsage"
+                      exit 0
+                      ;;
+
+                 \? ) FMessage "con" "Unknown Option"
+                      printf "$cUsage"
+                      exit 1
+                      ;;
+
+                 : ) FMessage "con" "missing required parameter for Option $opt"
+                     #printf "$cUsage"
+                     exit 1
+                   ;;
+             esac
+
+            shift
+            OPTIND=1
+      done
+
+      if [ $# -gt 0 ]; then
+         POSITIONALPARAM=(${POSITIONALPARAM[@]} $1)
+         shift
+         OPTIND=1
+      fi
+
+   done
+
+
+else
+
+
+
+# ENTRY POINT
+
+#------------------------------------------------------------
+# find dnscrypt and minisig
+#------------------------------------------------------------
+        FCheckPackagesFound
+
+#------------------------------------------------------------
+# Check if resolvers.csv not empty
+#------------------------------------------------------------
+        FCheckFiles
+
+#------------------------------------------------------------
+# Check file signature
+#------------------------------------------------------------
+        FCheckMinisig
+
+#------------------------------------------------------------
+# Get Process already running
+#------------------------------------------------------------
+        FCheckDaemonRunning
+
+#------------------------------------------------------------
+# Check IPs and ports
+#------------------------------------------------------------
+        FCheckPorts
+
+#------------------------------------------------------------
+#Show denscrypt-proxy tasks
+#------------------------------------------------------------
+        FShowTasksMenu
+
+fi
+
+
+# END OF SCRIPT
