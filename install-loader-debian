@@ -139,7 +139,7 @@ do
         1) whiptail --title "DNSCrypt-loader" --yesno "$instmsg" 0 0
            if [ $? = 0 ]; then
               Uninstall
-	      PrepareFolders
+ 	      PrepareFolders
               InstallLoader
               whiptail --title "DNSCrypt-loader Install" --msgbox "DNSCrypt-loader Install success\nType dncrypt-loader to run "  0 0
            fi
@@ -147,7 +147,7 @@ do
 
         2) whiptail --title "DNSCrypt-loader" --yesno "Enable loading at boot time ?" 0 0
            if [ $? = 0 ]; then
-              chkconfig $cLoaderInitdScript off
+              sudo update-rc.d $cLoaderInitdScript remove
      	      rm -f $cInitdTarget
               rm -f $cLoaderTarget
               PrepareFolders
@@ -159,8 +159,8 @@ do
 
         3) whiptail --title "DNSCrypt-loader" --yesno "Disable loading at boot time ?" 0 0
            if [ $? = 0 ]; then
-              chkconfig $cLoaderInitdScript off
-	      rm -f $cInitdTarget
+              sudo update-rc.d $cLoaderInitdScript remove
+  	      rm -f $cInitdTarget
               whiptail --title "DNSCrypt-loader uninstall" --msgbox "DNSCrypt-loader service uninstall success "  0 0
            fi
            ;;
