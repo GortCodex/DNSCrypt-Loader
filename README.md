@@ -24,49 +24,59 @@ Also, filters resolvers that do not create DNS query logs by default, but you ca
 - Restores resolvers used on last DNSCrypt-proxy session
 
 ## Pre-requisites
-
+  
 A successful install of DNSCrypt-proxy.
+
 
 **Optional**  
 A successful install of Minisign (optional but highly recomended)  
 Please refer to [https://github.com/jedisct1/minisign](https://github.com/jedisct1/minisign) to details.
 
 **Commands dependant**  
-`whiptail` (Pre-installed in most Linux distros)
+`whiptail` (Pre-installed in most Linux distros)  
+`gawk` GNU awk, a pattern scanning and processing language (Pre-installed in most Linux distros)  
+
 
 
 ## Compatibility
 The scripts were written and tested using CentOS Linux release 7  
  and should be compatible with most Linux distributions based on Red Hat.  
-Was tested in Debian based distros with success also.
+Was tested in Debian based distros with success also. 
 
 - CentOS, Fedora
-- Ubuntu, Mint, Debian
+- Ubuntu, Mint, Debian, Kali
 
 Versions of DNSCrypt-loader for other Linux distros will be available soon.
 
 ## know issues
-Scripts that use the Whiptail can be difficult to debug because the interface hides some error messages.
-For this reason, despite all care on script writing, you can get stuck on a screen without being able to cancel the script,
-This may force you to cancel an SSH session or kill the frozen process.
-
+Scripts that use the Whiptail can be difficult to debug because the interface hides some error messages. 
+For this reason, despite all care on script writing, you can get stuck on a screen without being able to cancel the script, 
+This may force you to cancel an SSH session or kill the frozen process.  
 
 
 ## Installation
 
-1. **Download and unpack DNSCrypt-loader**  
-[https://github.com/GortCodex/DNSCrypt-Loader/archive/master.zip](https://github.com/GortCodex/DNSCrypt-Loader/archive/master.zip)
+Install the `gawk` package before installing DNSCrypt-Loader.    
 
-2. **Run DNSCrypt-loader installer as root**
+1. Use your distro package installer, e.g.:
+	
+		yum install gawk
+		or
+		apt-get install gawk
+
+
+2. **Download and unpack DNSCrypt-loader**  
+[https://github.com/GortCodex/DNSCrypt-Loader/archive/master.zip](https://github.com/GortCodex/DNSCrypt-Loader/archive/master.zip)
+3. **Run DNSCrypt-loader installer as root**
 
 On CentOS and Red Hat based distros
 
-	./install-loader-redhat
+	./install-loader-redhat 
 
-On Ubuntu and Debian based distros
+On Ubuntu and Debian based distros 
 
 	sudo ./install-loader-debian
-
+ 
 
 ![alt text](images/dcp-install.png "Installer")
 
@@ -81,6 +91,7 @@ If you need to load DNSCrypt-proxy at system start up  this option will copy the
 `dcp-loader` is a basic init script to load DNSCrypt-proxy at boot time
 through the DNCrypt-loader.  
 Please, refer to Using DNSCrypt-loader as service (dcp-loader) topic
+
 
 **Option 3 - Disable DNSCrypt-loader at boot time**
 
@@ -113,7 +124,7 @@ At begining of dnscrypt-loader script locate the ` Start Customizations` block
 and configure as following:
 
 **The user who execute DNSCrypt-proxy**
-
+  
 It is strongly recommended that you change the root user  
 by an unprivileged user to avoid security problems
 
@@ -123,17 +134,20 @@ by an unprivileged user to avoid security problems
 
 Respectively, the local IP and port used by DNSCrypt-proxy to act as  
 primary DNS and secondary DNS instances
-
+  
     cPrimaryIP="127.0.0.1"
     cPrimaryPort="5553"
     cSecondaryIP="127.0.0.1"
     cSecondaryPort="5554"
-
-
+    
+    
 **Path to DNSCrypt-proxy files**  
 
-You only need to change the path to DNSCrypt-proxy files if you has customized the installation.  
+`cProxyBaseDir`, `cCSVBaseDir`, `cSIGBaseDir` parameters
+contents vary according to your distro and/or dnscrypt-proxy setup used (package, compilation, etc).
+incorrect paths are common causes of runtime errors.
 
+ 
 Path to DNSCrypt-proxy application:
 
     cProxyBaseDir="/usr/local/sbin/"
@@ -141,6 +155,10 @@ Path to DNSCrypt-proxy application:
 Path to resolvers.csv file:
 
     cCSVBaseDir="/usr/local/share/dnscrypt-proxy/"
+
+Path to Minisign path file:
+
+	cSIGBaseDir="/usr/local/share/dnscrypt-proxy/"
 
 **Parameters used by DNSCrypt-proxy**  
 
@@ -185,10 +203,10 @@ Please refer to [https://github.com/jedisct1/dnscrypt-proxy](https://github.com/
     cIPVersion="ipv4"
 
 **Resolvers.csv signature check using Minisign**
-
+  
 By default, this setting is disabled to allow you to install and configure Minisign.  
 Please refer to [https://github.com/jedisct1/minisign](https://github.com/jedisct1/minisign)  
-After that, you can set `cEnableSignCheck=true` and the integrity check will run properly
+After that, you can set `cEnableSignCheck=true` and the integrity check will run properly 
 
     cEnableSignCheck=false
 
@@ -202,7 +220,7 @@ You can put any domain you want.
     cDigTarget="internic.net"
     cDigTries=2
     cDigTime=5
-
+    
 **Interface type**  
 
 You can select between "whiptail" or "dialog"  to customize the interface appearance.  
@@ -222,7 +240,7 @@ Both are pre-installed on most Linux distros
 
 Select the resolver that will act as primary DNS using local IP and port previously configured.  
 Please, refer to `What parameters can you modify?` topic
-
+ 
 
 **Option 2 - Set secondary DNS resolver**
 
@@ -315,9 +333,9 @@ Does the same as the "-d" option, but uses random resolvers only.
 You can add filter modifiers to the options "-d" and "-r"  
 the randomizer will restrict the resolvers to these filters. Example:
 
-    dnscrypt-loader -i ipv4 -l nolog -r
+    dnscrypt-loader -i ipv4 -l nolog -r 
     dnscrypt-loader -i ipv6 -l log -d
-
+    
 **Update resolvers.csv**
 
 Performs download, update and signature check of the resolvers.csv file
@@ -350,7 +368,7 @@ Stops all instances of DNSCrypt-proxy and clears all information about the resol
 
     dnscrypt-loader -k
 
-
+  
 
 **Performs DNS leak test (IPV4)**  
 This function is just a command line bonus. It depends of third-party software that can be changed at any time.
@@ -368,7 +386,7 @@ the directive "Forward only;"  must be applied, since this server will forward a
 Obviously, you can use DNS Leak test pages to do the same.  
 Please refer to [https://www.dns-oarc.net/](https://www.dns-oarc.net/) for details
 
-
+  
     dnscrypt-loader -x
 
 ![alt text](images/dcp-leak.png "Leak")
@@ -377,7 +395,7 @@ Please refer to [https://www.dns-oarc.net/](https://www.dns-oarc.net/) for detai
 
 DNSCryp-loader uses two config files located in`/etc/dnscrypt-loader/`
 This files contains parameters used by DNSCrypt-proxy instances called primary and secondary DNS resolvers.
-
+    
     dcp-primary.conf
     dcp-secondary.conf
 
@@ -451,14 +469,14 @@ Please, refer to Bind documentation.
 You can enable or disable DNSCrypt-loader as service using the installer, please refer to Installation topic.  
 Remember that the service mode is needed to load DNSCrypt-proxy resolvers at boot time.  
 To control all details of DNSCrypt-proxy use the dnscrypt-loader script.
-
+  
 Once service is enabled, depending on your Linux distro, you can control the service as follow:
 
 **On Centos and RedHat based**
 
     service dcp-loader start|stop|restart|status  
     or
-    systemctl start|stop|restart|status dcp-loader.service
+    systemctl start|stop|restart|status dcploader.service
 
 
 **On Ubuntu and Debian based**

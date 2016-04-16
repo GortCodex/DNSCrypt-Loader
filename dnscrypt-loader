@@ -28,7 +28,9 @@ PATH=${PATH}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # ---------------------------------------------------------------------------
 # Revision history:
 # 2015-10-10  1.0 release
+# 2016-10-04  1.1 release
 # ---------------------------------------------------------------------------
+# 5711A60A
 
 #############################################################################
 #
@@ -54,14 +56,18 @@ cPrimaryPort="5553"
 cSecondaryIP="127.0.0.1"
 cSecondaryPort="5554"
 
-
+#------------------------------------------------------------
+# `cProxyBaseDir`, `cCSVBaseDir`, `cSIGBaseDir` parameters contents 
+# vary according to your distro and/or dnscrypt-proxy setup used 
+# (package, compilation, etc).
+# incorrect paths are common causes of runtime errors.
+#------------------------------------------------------------
 #------------------------------------------------------------
 # dnscrypt-proxy path
 #------------------------------------------------------------
 cProxyBaseDir="/usr/local/sbin/"
 cProxyBaseName="dnscrypt-proxy"
 cProxyApp="$cProxyBaseDir$cProxyBaseName"
-
 
 #------------------------------------------------------------
 # Resolvers.csv path
@@ -189,7 +195,7 @@ cLoaderProcess="dnscrypt-loader"
 # Locations
 #------------------------------------------------------------
 
-#cLoaderDir="$( cd "$(dirname "$0")"; pwd -P )"
+cLoaderDir="$( cd "$(dirname "$0")"; pwd -P )"
 
 cTempDir="/tmp/dnscrypt-loader/"
 cWorkFile="$cCSVBaseDir/dcploader-resolvers.csv"
@@ -450,7 +456,21 @@ function FCheckPackagesFound(){
        exit 1
     fi
  fi
+
+# Check if gawk is installed
+
+ dpGAWK=$(FCheckProgramFound "gawk")
+ if [ $dpGAWK = 0  ]; then
+    msg="Sorry gawk was not found.\n"
+    msg+="Please check if the program was installed.\n"
+
+    FMessage "box" "$msg"
+    exit 1
+ fi
+
+
 }
+
 
 #------------------------------------------------------------
 # Check status of resolvers.csv
@@ -466,6 +486,48 @@ function FCheckFiles(){
  touch $cWorkFile
  rm -f $cCSVTemp
  rm -f $cSIGTemp
+
+# Path conflict?
+
+
+ tProxyPath=$(which dnscrypt-proxy)
+ tProxyDir=$(dirname $tProxyPath)
+ if [ "$tProxyDir/" != "$cProxyBaseDir" ]; then
+    msg="\n\nThe path to dnscryp-proxy on dnscrypt-loader script \n"
+    msg+="differs from dnscrypt-proxy setup \n"
+    msg+="Please change dnscrypt-loader 'cProxyBaseDir' parameter to \n"
+    msg+="cProxyBaseDir='$tProxyDir/'"
+    msg+="\n\nEdit script at $cLoaderDir/dnscrypt-loader	 \n\n" 
+    FMessage "con" "$msg"
+    exit 1
+ fi       
+
+ 
+ tCSVPath=$(dnscrypt-proxy | awk  '/resolvers.csv/ NR>1 {print $1}' RS=[ FS=])
+ tCSVDir=$(dirname $tCSVPath)
+
+ if [ "$tCSVPath" != "$cCSVFile" ]; then
+    msg="\n\nThe path to resolvers.csv on dnscrypt-loader script \n"
+    msg+="differs from dnscrypt-proxy setup \n"
+    msg+="Please change dnscrypt-loader 'cCSVBaseDir' and 'cSIGBaseDir' parameters to\n"
+    msg+="cCSVBaseDir='$tCSVDir/' \n"
+    msg+="cSIGBaseDir='$tCSVDir/' \n"
+    msg+="\n\nEdit script at $cLoaderDir/dnscrypt-loader	 \n\n" 
+    FMessage "con" "$msg"
+    exit 1
+ fi
+
+
+ if [ "$cCSVBaseDir" != "$cSIGBaseDir" ]; then 
+    msg="\n\nThe path to resolvers.csv and resolvers.csv.minisig on dnscrypt-loader script \n"
+    msg+="must be equal \n"
+    msg+="Please change dnscrypt-loader 'cCSVBaseDir' and 'cSIGBaseDir' parameters to\n"
+    msg+="cCSVBaseDir='$tCSVDir/' \n"
+    msg+="cSIGBaseDir='$tCSVDir/' \n"
+    msg+="\n\nEdit script at $cLoaderDir/dnscrypt-loader	 \n\n" 
+    FMessage "con" "$msg"
+    exit 1
+ fi
 
 
 # file found ?
@@ -950,7 +1012,7 @@ function FDownloadResolvers(){
       *""*)                        HttpStatus="?";;
  esac
 
- if [ ${HttpStatus} == "301" ] || [ ${HttpStatus} == "404" ] || [ ${HttpStatus} == "?" ]; then
+ if [ ${HttpStatus} == "301" ] || [ ${HttpStatus} == "404" ]; then
     msg="Remote file $cCSVBaseName not found. \n\n"
     msg+="Please verify internet connection and URL \n"
     msg+="HTTP Error: ${HttpStatus}\n"
@@ -1044,7 +1106,7 @@ function FGetResolvers(){
      fi
 
      # Get Resolver Address, Provider name, Provider public key, Full name and No logs columns from .CSV
-     SelCols=$( echo  $ROW |  awk  -vFPAT='[^,]*|"[^"]*"'  '{ print $11"|",$12"|",$13"|",$2"|",$9 } '   )
+     SelCols=$( echo  $ROW |  gawk  -vFPAT='[^,]*|"[^"]*"'  '{ print $11"|",$12"|",$13"|",$2"|",$9 } '   )
 
      # Convert string to array
      CSVColumn=($SelCols)
@@ -1085,7 +1147,7 @@ function FGetRandomResolvers(){
  while [ $ipvmatch == false ]; do
     # Get Resolver Address, Provider name, Provider public key, Full name and No logs columns from .CSV
     # skip .csv header
-    sParams=$(sed 1d $cCSVFile | shuf  -n 1  | awk  -vFPAT='[^,]*|"[^"]*"' '{ print $11"|",$12"|",$13"|",$2"|",$9 }' )
+    sParams=$(sed 1d $cCSVFile | shuf  -n 1  | gawk  -vFPAT='[^,]*|"[^"]*"' '{ print $11"|",$12"|",$13"|",$2"|",$9 }' )
 
     # Convert string to array
     CSVColumn=($sParams)
@@ -1228,7 +1290,7 @@ function FShowResolversMenu(){
  while read -r ROW
  do
    # Get Resolver Address, Provider name, Provider public key, Full name and No logs columns from .CSV
-   sParams=$( echo  $ROW | awk  -vFPAT='[^,]*|"[^"]*"' '{ print $1,$2,$3,$4,$5 }'  )
+   sParams=$( echo  $ROW | gawk  -vFPAT='[^,]*|"[^"]*"' '{ print $1,$2,$3,$4,$5 }'  )
 
    # Convert string to array
    CSVColumn=($sParams)
@@ -1268,7 +1330,7 @@ function FShowResolversMenu(){
 
 
   # Get Resolver Address, Provider name, Provider public key, Full name and No logs columns from .CSV
-  sRunParams=$( cat $cWorkFile | grep -w $SelectedResolver |  awk  -vFPAT='[^,]*|"[^"]*"' '{ print $1,$2,$3,$4,$5 }'  )
+  sRunParams=$( cat $cWorkFile | grep -w $SelectedResolver |  gawk  -vFPAT='[^,]*|"[^"]*"' '{ print $1,$2,$3,$4,$5 }'  )
 
   # Convert string to array
   CSVColumn=($sRunParams)
