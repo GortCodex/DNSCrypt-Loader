@@ -7,7 +7,7 @@ If you are system adminitrator or common user this script is a handy way to setu
 - Has no package dependencies (or almost), to keep it universal and easy to use.
 - Runs in text mode, but uses Whiptail/Dialog interface which is pre-installed on most Linux distros.
 - Automatic update of resolver.csv file from official source
-- Signature verification of resolvers.csv file using Minisig. You can enable or disable resolver.csv integrity check.
+- Signature verification of resolvers.csv file using Minisign. You can enable or disable resolver.csv integrity check.
 - Automatic parsing of resolvers.csv file columns used on dnscrypt-proxy daemon execution parameters
 - Sets primary and secondary DNS resolvers instances.
 - Display of resolvers in a `whiptail` menu, that can be filtered to show only IPV4, IPV6 or show all resolvers.
@@ -29,7 +29,7 @@ A successful install of DNSCrypt-proxy.
 
 
 **Optional**  
-A successful install of Minisig (optional but highly recomended)  
+A successful install of Minisign (optional but highly recomended)  
 Please refer to [https://github.com/jedisct1/minisign](https://github.com/jedisct1/minisign) to details.
 
 **Commands dependant**  
@@ -156,7 +156,7 @@ Path to resolvers.csv file:
 
     cCSVBaseDir="/usr/local/share/dnscrypt-proxy/"
 
-Path to minisig path file:
+Path to Minisign path file:
 
 	cSIGBaseDir="/usr/local/share/dnscrypt-proxy/"
 
@@ -178,7 +178,7 @@ Automatic resolvers.csv signature verification uses this URL to download it
 
     cSIGURL="https://download.dnscrypt.org/dnscrypt-proxy/dnscrypt-resolvers.csv.minisig"
 
-**URL to copy Public Key used by Minisig**  
+**URL to copy Public Key used by Minisign**  
 
 When necessary you can copy Public key at [https://github.com/jedisct1/minisign](https://github.com/jedisct1/minisign)  
 
@@ -202,9 +202,9 @@ Please refer to [https://github.com/jedisct1/dnscrypt-proxy](https://github.com/
 
     cIPVersion="ipv4"
 
-**Resolvers.csv signature check using Minisig**
+**Resolvers.csv signature check using Minisign**
   
-By default, this setting is disabled to allow you to install and configure Minisig.  
+By default, this setting is disabled to allow you to install and configure Minisign.  
 Please refer to [https://github.com/jedisct1/minisign](https://github.com/jedisct1/minisign)  
 After that, you can set `cEnableSignCheck=true` and the integrity check will run properly 
 
@@ -342,9 +342,9 @@ Performs download, update and signature check of the resolvers.csv file
 
     dnscrypt-loader -u
 
-**Minisig Signature check**  
+**Minisign Signature check**  
 
-Performs integrity check of resolvers.csv file using Minisig
+Performs integrity check of resolvers.csv file using Minisign
 
     dnscrypt-loader -m
 
