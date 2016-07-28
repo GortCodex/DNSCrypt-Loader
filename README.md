@@ -45,6 +45,7 @@ Was tested in Debian based distros with success also.
 
 - CentOS, Fedora
 - Ubuntu, Mint, Debian, Kali
+- openSUSE
 
 Versions of DNSCrypt-loader for other Linux distros will be available soon.
 
@@ -56,13 +57,9 @@ This may force you to cancel an SSH session or kill the frozen process.
 
 ## Installation
 
-Install the `gawk` package before installing DNSCrypt-Loader.    
+Before installing DNSCrypt-loader install the whiptail (newt package) and the gawk package using your package manager, example:
 
-1. Use your distro package installer, e.g.:
-	
-		yum install gawk
-		or
-		apt-get install gawk
+	yum install -y newt gawk
 
 
 2. **Download and unpack DNSCrypt-loader**  
@@ -77,7 +74,10 @@ On Ubuntu and Debian based distros
 
 	sudo ./install-loader-debian
  
+On openSUSE based distros 
 
+	./install-loader-suse
+ 
 ![alt text](images/dcp-install.png "Installer")
 
 **Option 1 - Install DNSCrypt-loader**  
@@ -481,12 +481,18 @@ Once service is enabled, depending on your Linux distro, you can control the ser
 
 **On Ubuntu and Debian based**
 
-
     sudo service dcp-loader start|stop|restart|status
 
+**On openSUSE based**
+
+    service dcp-loader start|stop|restart|status
 
 
 
 ----------
 
 Hope you enjoy using DNSCrypt-loader to manage DNCrypt-proxy.
+
+---
+
+DCL Guide V.3 7/28/2016 
