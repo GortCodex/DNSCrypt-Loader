@@ -7,7 +7,8 @@ If you are system adminitrator or common user this script is a handy way to setu
 - Has no package dependencies (or almost), to keep it universal and easy to use.
 - Runs in text mode, but uses Whiptail/Dialog interface which is pre-installed on most Linux distros.
 - Automatic update of resolver.csv file from official source
-- Signature verification of resolvers.csv file using Minisign. You can enable or disable resolver.csv integrity check.
+- Signature verification of resolvers.csv file using 
+- n. You can enable or disable resolver.csv integrity check.
 - Automatic parsing of resolvers.csv file columns used on dnscrypt-proxy daemon execution parameters
 - Sets primary and secondary DNS resolvers instances.
 - Display of resolvers in a `whiptail` menu, that can be filtered to show only IPV4, IPV6 or show all resolvers.
@@ -55,7 +56,21 @@ For this reason, despite all care on script writing, you can get stuck on a scre
 This may force you to cancel an SSH session or kill the frozen process.  
 
 
-## Installation
+## Install using RPM packages
+
+[Click here to download rpm packages for centOS or openSUSE](https://software.opensuse.org/download.html?project=home%3Agortcodex&package=dnscrypt-loader)
+
+and Skip to `Prepare configurations` topic.  
+
+![alt text](images/dcp-centos-rpm.png "centos-rpm")
+
+
+![alt text](images/dcp-suse-rpm.png "centos-rpm")
+
+
+---------
+
+## Install manually
 
 Before installing DNSCrypt-loader install the whiptail (newt package) and the gawk package using your package manager, example:
 
@@ -63,7 +78,8 @@ Before installing DNSCrypt-loader install the whiptail (newt package) and the ga
 
 
 2. **Download and unpack DNSCrypt-loader**  
-[https://github.com/GortCodex/DNSCrypt-Loader/archive/master.zip](https://github.com/GortCodex/DNSCrypt-Loader/archive/master.zip)
+[https://github.com/GortCodex/DNSCrypt-Loader/releases](https://github.com/GortCodex/DNSCrypt-Loader/releases)
+
 3. **Run DNSCrypt-loader installer as root**
 
 On CentOS and Red Hat based distros
@@ -495,4 +511,4 @@ Hope you enjoy using DNSCrypt-loader to manage DNCrypt-proxy.
 
 ---
 
-DCL Guide V.3 7/28/2016 
+DCL Guide Rev-4 9/18/2016 
