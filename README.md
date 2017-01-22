@@ -1,3 +1,5 @@
+- Note: this version is not compatible with dnscrypt-proxy 1.9.4 yet
+
 # Getting started with DNSCrypt-Loader
 
 DNSCrypt-loader is a flexible and customizable bash script to manage DNSCrypt-proxy using command line or Whiptail GUI.
