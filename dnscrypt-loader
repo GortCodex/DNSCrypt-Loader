@@ -503,7 +503,7 @@ function FCheckFiles(){
  fi       
 
  
- tCSVPath=$(dnscrypt-proxy | awk  '/resolvers.csv/ NR>1 {print $1}' RS=[ FS=])
+ tCSVPath=$(dnscrypt-proxy 2>&1 | awk  '/resolvers.csv/ NR>1 {print $1}' RS=[ FS=])
  tCSVDir=$(dirname $tCSVPath)
 
  if [ "$tCSVPath" != "$cCSVFile" ]; then
